@@ -1,0 +1,11 @@
+# Local smoke-test overlay: publish laya on localhost:8000, skip Caddy/HTTPS.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up --build laya
+
+services:
+  laya:
+    ports:
+      - "8000:8000"
+
+  caddy:
+    profiles:
+      - donotstart

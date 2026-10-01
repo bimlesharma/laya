@@ -1,0 +1,60 @@
+services:
+  laya:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TORCH_VERSION: ${TORCH_VERSION:-2.14.0}
+        LAYA_VERSION: ${LAYA_VERSION:-0.3.22}
+    restart: unless-stopped
+    environment:
+      LAYA_DEVICE: ${LAYA_DEVICE:-cpu}
+      LAYA_HOST: "0.0.0.0"
+      LAYA_PORT: "8000"
+      LAYA_THREADS: ${LAYA_THREADS:-4}
+      LAYA_PRELOAD: ${LAYA_PRELOAD:-1}
+      LAYA_MODELS: ${LAYA_MODELS:-multilingual}
+      LAYA_API_KEY: ${LAYA_API_KEY:?Set LAYA_API_KEY in .env}
+      HF_HOME: /home/laya/.cache/huggingface
+      OMP_NUM_THREADS: ${LAYA_THREADS:-4}
+    volumes:
+      - laya-hf-cache:/home/laya/.cache/huggingface
+    networks:
+      - laya-net
+    # Port 8000 is internal only — reach the API through Caddy on 443.
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 600s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      laya:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - laya-net
+
+networks:
+  laya-net:
+    driver: bridge
+
+volumes:
+  laya-hf-cache:
+  caddy-data:
+  caddy-config:
